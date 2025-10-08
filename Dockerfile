@@ -12,11 +12,10 @@ RUN curl -fsSL https://bun.sh/install | bash
 ENV PATH="/root/.bun/bin:$PATH"
 
 # Copiar archivos de dependencias primero para mejor cache de Docker
-COPY package.json ./
-COPY bun.lockb ./
+COPY package.json bun.lockb ./
 
-# Instalar dependencias (sin --frozen-lockfile para evitar errores)
-RUN bun install
+# ⚡ Eliminar posibles caches anteriores y reinstalar limpio
+RUN rm -rf node_modules && bun install --no-cache
 
 # Copiar el resto del código fuente
 COPY . .
@@ -25,9 +24,13 @@ COPY . .
 ARG VITE_BASE_URL
 ARG VITE_COURSE_BASE_URL  
 ARG VITE_S3_BUCKET_URL
+
 ENV VITE_BASE_URL=$VITE_BASE_URL \
     VITE_COURSE_BASE_URL=$VITE_COURSE_BASE_URL \
     VITE_S3_BUCKET_URL=$VITE_S3_BUCKET_URL
+
+# ⚡ Asegurar binario de esbuild actualizado
+RUN bun add -d esbuild@latest
 
 # Construir la aplicación para producción
 RUN bun run build

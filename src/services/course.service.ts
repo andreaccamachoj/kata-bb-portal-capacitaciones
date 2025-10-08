@@ -16,6 +16,7 @@ export interface CreateCourseDto {
   description: string;
   tags: string;
   published: boolean;
+  coverUrl: string;
   chapters: CreateCourseChapter[];
 }
 

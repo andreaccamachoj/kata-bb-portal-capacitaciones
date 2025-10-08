@@ -152,7 +152,8 @@ type ChapterForm = {
             fileName: content?.fileName || '',
             contentType: content?.contentType || '',
           };
-        })
+        }),
+        coverUrl
       };
 
       // Preparar archivos para enviar
