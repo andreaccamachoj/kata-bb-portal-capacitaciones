@@ -1,18 +1,18 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useAuth } from '@/hooks/use-auth';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/molecules/card';
+import { Button } from '@/components/atoms/button';
+import { Input } from '@/components/atoms/input';
+import { Textarea } from '@/components/atoms/textarea';
+import { Label } from '@/components/atoms/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/molecules/select';
+import { Badge } from '@/components/atoms/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/organisms/tabs';
 import { GripVertical, Save, Trash2, Plus, ArchiveRestore, Eye } from 'lucide-react';
 import { Course, Chapter, CourseLevel, CourseStatus } from '@/types';
 import { toast } from 'sonner';
-import coursesData from '@/mocks/courses.json';
+// TODO: Reemplazar con fetch real de cursos
 
 export default function StudioEdit() {
   const { courseId } = useParams();

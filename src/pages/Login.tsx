@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/use-auth';
+import { Button } from '@/components/atoms/button';
+import { Input } from '@/components/atoms/input';
+import { Label } from '@/components/atoms/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/molecules/card';
 import { toast } from 'sonner';
 import { GraduationCap, LogIn } from 'lucide-react';
 
@@ -12,7 +12,7 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { login, loginWithSSO } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -23,25 +23,16 @@ export default function Login() {
       const success = await login(email, password);
       if (success) {
         toast.success('¡Bienvenido!');
-        navigate('/');
+        // Pequeño delay para asegurar que el estado se actualice
+        setTimeout(() => {
+          navigate('/dashboard', { replace: true });
+        }, 100);
       } else {
-        toast.error('Credenciales inválidas');
+        toast.error('Usuario o credenciales inválidas');
       }
     } catch (error) {
-      toast.error('Error al iniciar sesión');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSSO = async () => {
-    setIsLoading(true);
-    try {
-      await loginWithSSO();
-      toast.success('¡Bienvenido!');
-      navigate('/');
-    } catch (error) {
-      toast.error('Error en SSO');
+      const message = error instanceof Error ? error.message : 'Error al iniciar sesión';
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
@@ -106,13 +97,6 @@ export default function Login() {
           >
             Crear Cuenta Nueva
           </Button>
-
-          <div className="text-xs text-center text-muted-foreground space-y-1">
-            <p>Usuarios de prueba:</p>
-            <p>ana.garcia@empresa.com (LEARNER)</p>
-            <p>carlos.mendez@empresa.com (INSTRUCTOR)</p>
-            <p>laura.admin@empresa.com (ADMIN)</p>
-          </div>
         </CardContent>
       </Card>
     </div>

@@ -1,184 +1,73 @@
-# 🎓 Portal de Capacitaciones
+# Welcome to your Lovable project
 
-Sistema de gestión de aprendizaje (LMS) construido con React, TypeScript y arquitectura moderna.
+## Project info
 
+**URL**: https://lovable.dev/projects/7e213f74-f0e3-4f66-be19-b0e65d603b48
 
-## 🎯 Descripción
+## How can I edit this code?
 
-El Portal de Capacitaciones es una plataforma de aprendizaje en línea que permite a las organizaciones gestionar cursos, usuarios y contenido educativo. La aplicación soporta múltiples roles de usuario y proporciona funcionalidades específicas para administradores, instructores y estudiantes.
+There are several ways of editing your application.
 
-### Funcionalidades Principales
+**Use Lovable**
 
-- *Gestión de Usuarios*: Control completo de usuarios con diferentes roles
-- *Catálogo de Cursos*: Exploración y búsqueda de contenido educativo
-- *Sistema de Aprendizaje*: Seguimiento de progreso y completación
-- *Administración*: Panel de control para gestión de contenido
-- *Estudio/Creación*: Herramientas para instructores y creadores de contenido
-- *Badges y Reconocimientos*: Sistema de gamificación
-- *Responsive Design*: Optimizado para dispositivos móviles y desktop
+Simply visit the [Lovable Project](https://lovable.dev/projects/7e213f74-f0e3-4f66-be19-b0e65d603b48) and start prompting.
 
-## ✨ Características
+Changes made via Lovable will be committed automatically to this repo.
 
-### 🔐 Autenticación y Seguridad
-- JWT-based authentication
-- Protección de rutas por roles
-- Manejo automático de sesiones expiradas
-- Interceptors para manejo de errores
-- Logout automático en caso de tokens inválidos
+**Use your preferred IDE**
 
-### 📱 Interfaz de Usuario
-- Diseño responsive y moderno
-- Componentes reutilizables con shadcn/ui
-- Tema personalizable con Tailwind CSS
-- Componentes atómicos, moleculares y organismos
-- Toast notifications y feedback visual
+If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
 
-### 🎨 Experiencia de Usuario
-- Navegación intuitiva
-- Búsqueda en tiempo real
-- Carga lazy de contenido
-- Estados de carga y error
-- Optimización de performance
+The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
 
-### 📊 Gestión de Datos
-- React Query para manejo de estado servidor
-- Cache inteligente y sincronización
-- Mutaciones optimistas
-- Manejo de errores centralizado
+Follow these steps:
 
-## 🏗 Arquitectura
+```sh
+# Step 1: Clone the repository using the project's Git URL.
+git clone <YOUR_GIT_URL>
 
-### Patrón de Arquitectura
+# Step 2: Navigate to the project directory.
+cd <YOUR_PROJECT_NAME>
 
-El proyecto sigue una *arquitectura por capas* y utiliza el patrón *Atomic Design* para los componentes:
+# Step 3: Install the necessary dependencies.
+npm i
 
-```
-+─────────────────────────────────────────+
-│              UI Layer                   │
-│   (Pages, Templates, Organisms)         │
-+─────────────────────────────────────────+
-│           Business Logic                │
-│        (Hooks, Contexts)                │
-+─────────────────────────────────────────+
-│           Service Layer                 │
-│        (API Services)                   │
-+─────────────────────────────────────────+
-│          Data Access Layer              │
-│     (HTTP Client, Storage)              │
-+─────────────────────────────────────────+
-```
-### Principios de Diseño
-
-- *Separation of Concerns*: Separación clara entre UI, lógica de negocio y datos
-- *Single Responsibility*: Cada componente tiene una responsabilidad específica
-- *DRY (Don't Repeat Yourself)*: Reutilización de componentes y lógica
-- *Component Composition*: Composición sobre herencia
-- *Type Safety*: TypeScript para prevenir errores en tiempo de compilación
-
-
-## 🛠 Tecnologías
-
-- **React 18.3.1** + **TypeScript 5.8.3**
-- **Vite 6.1.6** - Build tool y dev server
-- **TanStack Query 5.90.2** - Estado del servidor
-- **Tailwind CSS 3.4.17** + **Radix UI** - Componentes y estilos
-- **React Router DOM 6.30.1** - Enrutamiento
-- **Axios 1.12.2** - Cliente HTTP
-- **Zod 3.25.76** - Validación de esquemas
-- **React Hook Form** - Manejo de formularios
-
-## 📁 Estructura del Proyecto
-
-```
-src/
-├── components/          # Componentes UI (Atomic Design)
-│   ├── atoms/          # Básicos (button, input, etc.)
-│   ├── molecules/      # Compuestos (card, form, etc.)
-│   ├── organisms/      # Complejos (table, sidebar, etc.)
-│   └── templates/      # Layouts (AppLayout, ProtectedRoute)
-├── pages/              # Páginas principales
-├── hooks/              # Custom hooks
-├── contexts/           # React contexts
-├── services/           # Servicios API
-├── lib/                # Utilidades
-├── types/              # Definiciones TypeScript
-├── config/             # Configuración
-└── utils/              # Funciones utilitarias
+# Step 4: Start the development server with auto-reloading and an instant preview.
+npm run dev
 ```
 
-## 🚀 Instalación
+**Edit a file directly in GitHub**
 
-```bash
-# Clonar repositorio
-git clone https://github.com/andreaccamachoj/kata-bb-portal-capacitaciones
+- Navigate to the desired file(s).
+- Click the "Edit" button (pencil icon) at the top right of the file view.
+- Make your changes and commit the changes.
 
-# Instalar dependencias
-bun install
-# o con npm: npm install
+**Use GitHub Codespaces**
 
-# Configurar variables de entorno
-cp .env.example .env.local
+- Navigate to the main page of your repository.
+- Click on the "Code" button (green button) near the top right.
+- Select the "Codespaces" tab.
+- Click on "New codespace" to launch a new Codespace environment.
+- Edit files directly within the Codespace and commit and push your changes once you're done.
 
-# Ejecutar en desarrollo
-bun run dev
-# Acceder en: http://localhost:8080
-```
+## What technologies are used for this project?
 
-## ⚙️ Configuración
+This project is built with:
 
-### Variables de Entorno (.env.local)
+- Vite
+- TypeScript
+- React
+- shadcn-ui
+- Tailwind CSS
 
-```env
-VITE_BASE_URL=http://localhost:3000
-VITE_COURSE_BASE_URL=http://localhost:3001
-VITE_S3_BUCKET_URL=https://your-s3-bucket.amazonaws.com
-```
+## How can I deploy this project?
 
-## 🛣 Rutas Principales
+Simply open [Lovable](https://lovable.dev/projects/7e213f74-f0e3-4f66-be19-b0e65d603b48) and click on Share -> Publish.
 
-```
-/login, /register        # Autenticación
-/dashboard              # Dashboard principal
-/catalog                # Catálogo de cursos
-/courses/:id           # Detalle y aprendizaje
-/me/learning, /profile  # Área personal
-/admin/*               # Gestión (solo ADMIN)
-/studio/*              # Creación (INSTRUCTOR/ADMIN)
-```
+## Can I connect a custom domain to my Lovable project?
 
-## 👥 Sistema de Roles
+Yes, you can!
 
-| Rol | Permisos |
-|-----|----------|
-| **STUDENT** | Ver catálogo, tomar cursos, perfil |
-| **INSTRUCTOR** | + Crear cursos, gestionar contenido |
-| **ADMIN** | + Gestionar usuarios, módulos, configuración |
+To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
-
-## 🔄 Flujos de Usuario
-
-### Flujo de Autenticación
-
-
-Usuario accede → ¿Está autenticado? → No → Redirigir a /login
-                                   → Sí → ¿Token válido? → No → /login
-                                                        → Sí → Dashboard
-
-
-### Flujo de Aprendizaje
-
-
-Ver Catálogo → Seleccionar Curso → Ver Detalles → ¿Inscrito? → No → Inscribirse
-                                                            → Sí → Continuar Aprendizaje
-
-
-### Flujo Administrativo
-
-
-Admin Dashboard → Seleccionar Gestión → Usuarios/Cursos/Módulos → CRUD Operations
-
-
-### Flujo de Creación de Contenido
-
-
-Instructor Dashboard → Crear Nuevo Curso → Información Básica → Agregar Módulos → Publicar
+Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)

@@ -1,13 +1,24 @@
-import { useState, useEffect } from 'react';
-import modulesData from '@/mocks/modules.json';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { toast } from 'sonner';
+import { Button, Input, Label, toast } from '@/components/atoms';
 import { FolderTree, Plus, Edit, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/molecules';
+import { Dialog,
+   DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow
+} from '@/components/organisms';
+import { COURSE_BASE_URL } from '@/config/environment';
+import { MODULE_SERVICE_GET_MODULES } from '@/config/resources';
+import { useFetch } from '@/hooks/use-fetch';
 
 interface Module {
   id: string;
@@ -15,22 +26,33 @@ interface Module {
   description?: string;
 }
 
+
 export default function AdminModules() {
-  const [modules, setModules] = useState<Module[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingModule, setEditingModule] = useState<Module | null>(null);
   const [formName, setFormName] = useState('');
   const [formDescription, setFormDescription] = useState('');
 
+  // Fetch módulos (API)
+  const { data: fetchedModules = [], isLoading: loadingModules } = useFetch<Array<{ id: number; key: string; name: string; description: string }>>({
+    resource: `${COURSE_BASE_URL}${MODULE_SERVICE_GET_MODULES}`,
+  });
+
+  // Local state for modules (for demo/local CRUD)
+  const [modules, setModules] = useState<Module[]>([]);
+
+  // Sync local modules with fetched modules on first load
   useEffect(() => {
-    // Convert modules from string array to objects
-    const modulesWithIds = modulesData.map((name, index) => ({
-      id: `mod_${index + 1}`,
-      name,
-      description: `Módulo de capacitación en ${name}`
-    }));
-    setModules(modulesWithIds);
-  }, []);
+    if (fetchedModules.length > 0) {
+      setModules(
+        fetchedModules.map((m) => ({
+          id: m.id.toString(),
+          name: m.name,
+          description: m.description,
+        }))
+      );
+    }
+  }, [fetchedModules]);
 
   const handleOpenDialog = (module?: Module) => {
     if (module) {
@@ -52,19 +74,21 @@ export default function AdminModules() {
     }
 
     if (editingModule) {
-      setModules(prev => prev.map(m => 
-        m.id === editingModule.id 
-          ? { ...m, name: formName, description: formDescription }
-          : m
-      ));
+      setModules((prev) =>
+        prev.map((m) =>
+          m.id === editingModule.id
+            ? { ...m, name: formName, description: formDescription }
+            : m
+        )
+      );
       toast.success('Módulo actualizado correctamente');
     } else {
       const newModule: Module = {
         id: `mod_${modules.length + 1}`,
         name: formName,
-        description: formDescription
+        description: formDescription,
       };
-      setModules(prev => [...prev, newModule]);
+      setModules((prev) => [...prev, newModule]);
       toast.success('Módulo creado correctamente');
     }
 
@@ -75,7 +99,7 @@ export default function AdminModules() {
   };
 
   const handleDelete = (id: string) => {
-    setModules(prev => prev.filter(m => m.id !== id));
+    setModules((prev) => prev.filter((m) => m.id !== id));
     toast.success('Módulo eliminado correctamente');
   };
 

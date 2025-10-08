@@ -1,53 +1,90 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User } from '@/types';
-import usersData from '@/mocks/users.json';
-
-interface AuthContextType {
-  user: User | null;
-  login: (email: string, password: string) => Promise<boolean>;
-  loginWithSSO: () => Promise<void>;
-  logout: () => void;
-  isAuthenticated: boolean;
-  hasRole: (role: string | string[]) => boolean;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+import { useState, useEffect } from 'react';
+import { useMutation } from '@tanstack/react-query';
+import { authService } from '@/services/auth.service';
+import { AuthContext } from './auth-context';
+import { LoginResponse, User } from '@/types/autentication.interface';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check localStorage for existing session
-    const storedUser = localStorage.getItem('currentUser');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
+    const initializeAuth = async () => {
+      try {
+        const token = authService.getToken();
+        const storedUser = localStorage.getItem('currentUser');
+
+        if (token && storedUser) {
+          const parsedUser = JSON.parse(storedUser);
+          setUser(parsedUser);
+          setIsAuthenticated(true);
+        }
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+        authService.logout();
+        setUser(null);
+        setIsAuthenticated(false);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initializeAuth();
+  }, []);
+
+  const loginMutation = useMutation({
+    mutationFn: (credentials: { email: string; password: string }) => 
+      authService.login(credentials),
+    onSuccess: (data: LoginResponse) => {
+      if (data.userName && data.token) {
+        const userData = {
+          email: data.email,
+          userName: data.userName,
+          role: data.role,
+          userId: data.userId
+        };
+        setUser(userData);
+        setIsAuthenticated(true);
+        localStorage.setItem('currentUser', JSON.stringify(userData));
+      }
+    },
+  });
+
+  useEffect(() => {
+    try {
+      const storedUser = localStorage.getItem('currentUser');
+      const token = authService.getToken();
+      
+      if (storedUser && token) {
+        const parsedUser = JSON.parse(storedUser);
+        if (parsedUser) {
+          setUser(parsedUser);
+        }
+      } else {
+        authService.logout();
+        setUser(null);
+      }
+    } catch (error) {
+      console.error('Error al recuperar la sesión:', error);
+      authService.logout();
+      setUser(null);
     }
   }, []);
 
-  const login = async (email: string, _password: string): Promise<boolean> => {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const foundUser = usersData.find(u => u.email === email);
-    if (foundUser) {
-      setUser(foundUser as User);
-      localStorage.setItem('currentUser', JSON.stringify(foundUser));
+  const login = async (email: string, password: string): Promise<boolean> => {
+    try {
+      await loginMutation.mutateAsync({ email, password });
       return true;
+    } catch (error) {
+      throw new Error(error instanceof Error ? error.message : 'Error al iniciar sesión');
+      return false;
     }
-    return false;
-  };
-
-  const loginWithSSO = async (): Promise<void> => {
-    // Simulate SSO login - default to first learner
-    await new Promise(resolve => setTimeout(resolve, 500));
-    const defaultUser = usersData[0] as User;
-    setUser(defaultUser);
-    localStorage.setItem('currentUser', JSON.stringify(defaultUser));
   };
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('currentUser');
+    authService.logout();
   };
 
   const hasRole = (role: string | string[]): boolean => {
@@ -56,26 +93,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return roles.includes(user.role);
   };
 
+
   return (
     <AuthContext.Provider 
       value={{ 
         user, 
-        login, 
-        loginWithSSO, 
-        logout, 
-        isAuthenticated: !!user,
-        hasRole 
+        login,
+        logout,
+        isAuthenticated,
+        hasRole,
+        isLoading: loginMutation.isPending || isLoading 
       }}
     >
       {children}
     </AuthContext.Provider>
   );
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within AuthProvider');
-  }
-  return context;
 }

@@ -1,59 +1,77 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import { Course, Progress } from '@/types';
-import { mockApi } from '@/mocks/api';
-import { CourseCard } from '@/components/CourseCard';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Skeleton } from '@/components/ui/skeleton';
-import modulesData from '@/mocks/modules.json';
+import { useAuth } from '@/hooks/use-auth';
+import { useFetch } from '@/hooks/use-fetch';
+import { Course, CourseProgress } from '@/types';
+import { CourseCard } from '@/components/organisms/CourseCard';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/organisms/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/molecules/select';
+import { Skeleton } from '@/components/atoms/skeleton';
+import { COURSE_BASE_URL } from '@/config/environment';
+import { COURSE_SERVICE_GET_COURSES, TRAINING_SERVICE_GET_PROGRESS } from '@/config/resources';
+import apiClient from '@/lib/api-client';
 
 export default function MyLearning() {
   const { user } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [progress, setProgress] = useState<Progress[]>([]);
   const [moduleFilter, setModuleFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'recent' | 'title'>('recent');
+  const [progressData, setProgressData] = useState<CourseProgress[]>([]);
+  const [loadingProgress, setLoadingProgress] = useState(true);
 
+  // Fetch de cursos
+  const { data: courses = [], isLoading: loadingCourses } = useFetch<Course[]>({
+    resource: `${COURSE_BASE_URL}${COURSE_SERVICE_GET_COURSES}`,
+  });
+
+  // Fetch de progreso del usuario cuando el userId esté disponible
   useEffect(() => {
-    if (!user) return;
-    
-    const loadData = async () => {
-      setLoading(true);
-      const [allCourses, userProgress] = await Promise.all([
-        mockApi.fetchCourses({}),
-        mockApi.fetchUserProgress(user.id)
-      ]);
-      setCourses(allCourses);
-      setProgress(userProgress);
-      setLoading(false);
+    const fetchProgress = async () => {
+      if (!user?.userId) {
+        setProgressData([]);
+        setLoadingProgress(false);
+        return;
+      }
+
+      try {
+        setLoadingProgress(true);
+        const { data } = await apiClient.get<CourseProgress[]>(
+          `${COURSE_BASE_URL}${TRAINING_SERVICE_GET_PROGRESS}/${user.userId}`
+        );
+        setProgressData(data);
+      } catch (error) {
+        console.error('Error fetching progress:', error);
+        setProgressData([]);
+      } finally {
+        setLoadingProgress(false);
+      }
     };
 
-    loadData();
-  }, [user]);
+    fetchProgress();
+  }, [user?.userId]);
+
+  const loading = loadingCourses || loadingProgress;
 
   const getCoursesWithProgress = () => {
-    return courses
-      .map(course => {
-        const prog = progress.find(p => p.courseId === course.id);
-        return { course, progress: prog };
+    return progressData
+      .map(prog => {
+        const course = courses.find(c => c.id === prog.courseId);
+        return course ? { course, progress: prog } : null;
       })
-      .filter(item => item.progress);
+      .filter(Boolean) as { course: Course; progress: CourseProgress }[];
   };
 
-  const filterAndSort = (items: { course: Course; progress?: Progress }[]) => {
+  const filterAndSort = (items: { course: Course; progress: CourseProgress }[]) => {
     let filtered = items;
 
     if (moduleFilter !== 'all') {
-      filtered = filtered.filter(item => item.course.module === moduleFilter);
+      filtered = filtered.filter(item => item.course.moduleName === moduleFilter);
     }
 
     if (sortBy === 'recent') {
       filtered.sort((a, b) => {
-        const dateA = a.progress?.lastWatchedAt || '';
-        const dateB = b.progress?.lastWatchedAt || '';
-        return dateB.localeCompare(dateA);
+        // Si hay fecha de completado, usar esa, sino usar fecha de creación del curso
+        const dateA = a.progress.completedAt || a.course.createdAt;
+        const dateB = b.progress.completedAt || b.course.createdAt;
+        return new Date(dateB).getTime() - new Date(dateA).getTime();
       });
     } else {
       filtered.sort((a, b) => a.course.title.localeCompare(b.course.title));
@@ -63,8 +81,20 @@ export default function MyLearning() {
   };
 
   const coursesWithProgress = getCoursesWithProgress();
-  const inProgress = coursesWithProgress.filter(item => item.progress && item.progress.percentage > 0 && item.progress.percentage < 100);
-  const completed = coursesWithProgress.filter(item => item.progress && item.progress.percentage === 100);
+  const inProgress = coursesWithProgress.filter(item => item.progress.progressPct >= 0 && item.progress.progressPct < 100);
+  const completed = coursesWithProgress.filter(item => item.progress.progressPct === 100);
+
+  // Obtener módulos únicos de los cursos
+  const availableModules = [...new Set(courses.map(course => course.moduleName))].filter(Boolean);
+
+  if (!user) {
+    return (
+      <div className="space-y-8 p-6">
+        <h1 className="text-2xl font-bold">Sesión cerrada</h1>
+        <p className="text-muted-foreground">Por favor inicia sesión para continuar.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto py-8 px-4">
@@ -80,7 +110,7 @@ export default function MyLearning() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos los módulos</SelectItem>
-            {modulesData.map(module => (
+            {availableModules.map(module => (
               <SelectItem key={module} value={module}>{module}</SelectItem>
             ))}
           </SelectContent>
@@ -124,7 +154,7 @@ export default function MyLearning() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filterAndSort(inProgress).map(({ course, progress }) => (
-                <CourseCard key={course.id} course={course} progress={progress} />
+                <CourseCard key={course.id} course={course} progress={progress} isStarted={true} />
               ))}
             </div>
           )}
@@ -144,7 +174,7 @@ export default function MyLearning() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filterAndSort(completed).map(({ course, progress }) => (
-                <CourseCard key={course.id} course={course} progress={progress} />
+                <CourseCard key={course.id} course={course} progress={progress} isStarted={true} />
               ))}
             </div>
           )}
@@ -164,7 +194,7 @@ export default function MyLearning() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filterAndSort(coursesWithProgress).map(({ course, progress }) => (
-                <CourseCard key={course.id} course={course} progress={progress} />
+                <CourseCard key={course.id} course={course} progress={progress} isStarted={true} />
               ))}
             </div>
           )}

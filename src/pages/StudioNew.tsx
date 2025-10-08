@@ -1,30 +1,31 @@
-import { useState } from 'react';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { Button, Input, Textarea, Label, Badge, Progress, toast } from '@/components/atoms';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/molecules';
+import { MaterialUploadModal } from '@/components/organisms';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
-import { MaterialUploadModal } from '@/components/MaterialUploadModal';
-import { FileUpload } from '@/components/FileUpload';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowRight, ArrowLeft, GripVertical, Plus, Trash2, Eye, CheckCircle2, File, Upload, Link } from 'lucide-react';
-import { Course, CourseLevel, Chapter, ContentType } from '@/types';
-import { storageUtils } from '@/utils/storage';
-import { toast } from 'sonner';
-import modulesData from '@/mocks/modules.json';
+import { useAuth } from '@/hooks/use-auth';
+import { ArrowRight, ArrowLeft, GripVertical, Plus, Trash2, CheckCircle2, File } from 'lucide-react';
+import { ContentType, Material } from '@/types';
+import { useState } from 'react';
+import { useFetch } from '@/hooks/use-fetch';
+import { COURSE_BASE_URL } from '@/config/environment';
+import { COURSE_SERVICE_CREATE_COURSE, MODULE_SERVICE_GET_MODULES } from '@/config/resources';
+import { createCourse, CreateCourseDto } from '@/services/course.service';
+
+export default function StudioNew() {
+  // Fetch módulos
+  const { data: modules = [], isLoading: loadingModules } = useFetch<Array<{ id: number; key: string; name: string; description: string }>>({
+    resource: `${COURSE_BASE_URL}${MODULE_SERVICE_GET_MODULES}`,
+  });
 
 type WizardStep = 1 | 2 | 3 | 4 | 5;
 
-interface ChapterForm extends Chapter {
+type ChapterForm = {
   tempId: string;
-}
+  title: string;
+  type: ContentType;
+};
 
-export default function StudioNew() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState<WizardStep>(1);
@@ -33,7 +34,6 @@ export default function StudioNew() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [module, setModule] = useState('');
-  const [level, setLevel] = useState<CourseLevel>('Básico');
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [coverUrl, setCoverUrl] = useState('');
@@ -43,7 +43,7 @@ export default function StudioNew() {
   const [draggedChapter, setDraggedChapter] = useState<number | null>(null);
 
   // Step 3: Chapter content
-  const [chapterContents, setChapterContents] = useState<Record<string, { contentUrl: string; materialName?: string; duration?: number; pages?: number }>>({});
+  const [chapterContents, setChapterContents] = useState<Record<string, { file?: File; materialName?: string; fileName?: string; contentType?: string }>>({});
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
   const [currentChapterForUpload, setCurrentChapterForUpload] = useState<ChapterForm | null>(null);
 
@@ -57,15 +57,16 @@ export default function StudioNew() {
     setUploadModalOpen(true);
   };
 
-  const handleMaterialSelect = (material: any) => {
+  // Ahora acepta un segundo argumento opcional: el File real
+  const handleMaterialSelect = (material: Material, file?: File) => {
     if (currentChapterForUpload) {
       setChapterContents({
         ...chapterContents,
         [currentChapterForUpload.tempId]: {
-          contentUrl: material.url,
           materialName: material.name,
-          duration: currentChapterForUpload.type === 'video' ? 15 : undefined,
-          pages: currentChapterForUpload.type === 'pdf' ? 20 : undefined
+          fileName: material.name,
+          contentType: material.type === 'video' ? 'video/mp4' : material.type === 'pdf' ? 'application/pdf' : '',
+          ...(file ? { file } : {})
         }
       });
     }
@@ -85,11 +86,9 @@ export default function StudioNew() {
 
   const addChapter = () => {
     const newChapter: ChapterForm = {
-      id: `ch_temp_${Date.now()}`,
       tempId: `temp_${Date.now()}`,
       title: `Capítulo ${chapters.length + 1}`,
       type: 'video',
-      contentUrl: ''
     };
     setChapters([...chapters, newChapter]);
   };
@@ -125,57 +124,56 @@ export default function StudioNew() {
     setDraggedChapter(null);
   };
 
-  const canProceedStep1 = title && description && module && level;
+  const canProceedStep1 = title && description && module;
   const canProceedStep2 = chapters.length > 0;
-  const canProceedStep3 = chapters.every(ch => chapterContents[ch.tempId]?.contentUrl);
+  const canProceedStep3 = chapters.every(ch => chapterContents[ch.tempId]?.fileName);
   const canProceedStep4 = badgeName && badgeIcon;
 
-  const handlePublish = () => {
+  const handlePublish = async () => {
     if (!user) return;
+    try {
+      // Buscar moduleId real desde módulos obtenidos
+      const selectedModule = modules.find((m) => m.name === module);
+      const moduleId = selectedModule ? selectedModule.id : undefined;
+      if (!moduleId) throw new Error('Selecciona un módulo válido');
 
-    const finalChapters: Chapter[] = chapters.map(ch => ({
-      id: `ch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      title: ch.title,
-      type: ch.type,
-      contentUrl: chapterContents[ch.tempId].contentUrl,
-      duration: chapterContents[ch.tempId].duration,
-      pages: chapterContents[ch.tempId].pages
-    }));
+      // Construir el objeto de curso como en el ejemplo
+      const courseDto: CreateCourseDto = {
+        moduleId,
+        title,
+        description,
+        tags: tags.join(','),
+        published: true,
+        chapters: chapters.map((ch, idx) => {
+          const content = chapterContents[ch.tempId];
+          return {
+            title: ch.title,
+            orderIndex: idx + 1,
+            fileName: content?.fileName || '',
+            contentType: content?.contentType || '',
+          };
+        })
+      };
 
-    const totalDuration = finalChapters.reduce((sum, ch) => sum + (ch.duration || 0), 0);
-
-    const newCourse: Course = {
-      id: `c_${Date.now()}`,
-      title,
-      description,
-      module,
-      level,
-      duration: totalDuration,
-      coverUrl: coverUrl || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800',
-      isExternal: false,
-      tags,
-      createdAt: new Date().toISOString(),
-      popularity: 0,
-      rating: 0,
-      chapters: finalChapters,
-      badge: {
-        id: `b_${Date.now()}`,
-        name: badgeName,
-        icon: badgeIcon,
-        color: badgeColor
-      },
-      author: {
-        id: user.id,
-        name: user.name
-      },
-      status: 'published'
-    };
-
-    toast.success('¡Curso publicado!', {
-      description: `${title} está ahora disponible en el catálogo`
-    });
-
-    navigate('/catalog');
+      // Preparar archivos para enviar
+      const files = chapters.map((ch) => chapterContents[ch.tempId]?.file).filter(Boolean) as File[];
+      // Log para depuración: muestra los archivos que se van a enviar
+      console.log('Archivos a enviar:', files);
+      chapters.forEach((ch, idx) => {
+        console.log(`Capítulo ${idx + 1}:`, chapterContents[ch.tempId]);
+      });
+      if (files.length === 0) {
+        toast.error('Debes adjuntar al menos un archivo para los capítulos.');
+        return;
+      }
+      await createCourse(courseDto, files);
+      toast.success('¡Curso publicado!', {
+        description: `${title} está ahora disponible en el catálogo`
+      });
+      navigate('/catalog');
+    } catch (err: any) {
+      toast.error('Error al publicar el curso', { description: err.message });
+    }
   };
 
   const stepProgress = (currentStep / 5) * 100;
@@ -225,25 +223,17 @@ export default function StudioNew() {
                           <SelectValue placeholder="Selecciona un módulo" />
                         </SelectTrigger>
                         <SelectContent>
-                          {modulesData.map(modName => (
-                            <SelectItem key={modName} value={modName}>
-                              {modName}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div>
-                      <Label htmlFor="level">Nivel *</Label>
-                      <Select value={level} onValueChange={(v) => setLevel(v as CourseLevel)}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Básico">Básico</SelectItem>
-                          <SelectItem value="Intermedio">Intermedio</SelectItem>
-                          <SelectItem value="Avanzado">Avanzado</SelectItem>
+                          {loadingModules ? (
+                            <div className="px-4 py-2 text-muted-foreground text-sm">Cargando...</div>
+                          ) : (
+                            modules
+                              .filter((mod) => !!mod.name && mod.name !== "")
+                              .map((mod) => (
+                                <SelectItem key={mod.id} value={mod.name}>
+                                  {mod.name}
+                                </SelectItem>
+                              ))
+                          )}
                         </SelectContent>
                       </Select>
                     </div>
@@ -273,18 +263,6 @@ export default function StudioNew() {
 
                   <div>
                     <Label>Portada del Curso (opcional)</Label>
-                    <Tabs defaultValue="url" className="w-full mt-2">
-                      <TabsList className="grid w-full grid-cols-2">
-                        <TabsTrigger value="url" className="gap-2">
-                          <Link className="w-4 h-4" />
-                          URL
-                        </TabsTrigger>
-                        <TabsTrigger value="upload" className="gap-2">
-                          <Upload className="w-4 h-4" />
-                          Subir Imagen
-                        </TabsTrigger>
-                      </TabsList>
-                      <TabsContent value="url" className="mt-4">
                         <Input
                           id="cover"
                           value={coverUrl}
@@ -303,27 +281,6 @@ export default function StudioNew() {
                             />
                           </div>
                         )}
-                      </TabsContent>
-                      <TabsContent value="upload" className="mt-4">
-                        <FileUpload
-                          acceptedTypes={['.jpg', '.jpeg', '.png', '.webp']}
-                          maxSizeMB={5}
-                          onUploadComplete={(file, url) => {
-                            setCoverUrl(url);
-                            toast.success('Imagen de portada subida');
-                          }}
-                        />
-                        {coverUrl && (
-                          <div className="mt-3">
-                            <img 
-                              src={coverUrl} 
-                              alt="Preview de portada" 
-                              className="w-full h-48 object-cover rounded-lg"
-                            />
-                          </div>
-                        )}
-                      </TabsContent>
-                    </Tabs>
                   </div>
                 </div>
               </div>
@@ -412,7 +369,7 @@ export default function StudioNew() {
                       <div>
                         <Label>Material del Capítulo</Label>
                         <div className="flex gap-2">
-                          {chapterContents[chapter.tempId]?.contentUrl ? (
+                          {chapterContents[chapter.tempId]?.fileName ? (
                             <div className="flex-1 flex items-center gap-2 p-3 border rounded-lg bg-accent">
                               <File className="w-4 h-4 text-muted-foreground" />
                               <span className="text-sm flex-1 truncate">
@@ -438,40 +395,6 @@ export default function StudioNew() {
                           )}
                         </div>
                       </div>
-
-                      {chapter.type === 'video' && chapterContents[chapter.tempId] && (
-                        <div>
-                          <Label>Duración (minutos)</Label>
-                          <Input
-                            type="number"
-                            value={chapterContents[chapter.tempId]?.duration || ''}
-                            onChange={(e) => setChapterContents({
-                              ...chapterContents,
-                              [chapter.tempId]: {
-                                ...chapterContents[chapter.tempId],
-                                duration: parseInt(e.target.value) || 0
-                              }
-                            })}
-                          />
-                        </div>
-                      )}
-
-                      {chapter.type === 'pdf' && chapterContents[chapter.tempId] && (
-                        <div>
-                          <Label>Páginas</Label>
-                          <Input
-                            type="number"
-                            value={chapterContents[chapter.tempId]?.pages || ''}
-                            onChange={(e) => setChapterContents({
-                              ...chapterContents,
-                              [chapter.tempId]: {
-                                ...chapterContents[chapter.tempId],
-                                pages: parseInt(e.target.value) || 0
-                              }
-                            })}
-                          />
-                        </div>
-                      )}
                     </CardContent>
                   </Card>
                 ))}
@@ -557,14 +480,6 @@ export default function StudioNew() {
                   <p className="text-sm text-muted-foreground">{description}</p>
                 </div>
 
-                <div className="flex gap-2">
-                  <Badge>{module}</Badge>
-                  <Badge variant="outline">{level}</Badge>
-                  {tags.map(tag => (
-                    <Badge key={tag} variant="secondary">{tag}</Badge>
-                  ))}
-                </div>
-
                 <div>
                   <p className="text-sm font-medium mb-2">Capítulos ({chapters.length}):</p>
                   <ul className="space-y-1 text-sm text-muted-foreground">
@@ -633,7 +548,7 @@ export default function StudioNew() {
         open={uploadModalOpen}
         onOpenChange={setUploadModalOpen}
         onSelectMaterial={handleMaterialSelect}
-        filterType={currentChapterForUpload?.type === 'video' ? 'video' : currentChapterForUpload?.type === 'pdf' ? 'pdf' : undefined}
+        filterType={currentChapterForUpload?.type}
       />
     </div>
   );

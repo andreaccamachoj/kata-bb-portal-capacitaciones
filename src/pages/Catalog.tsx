@@ -1,54 +1,86 @@
-import { useEffect, useState } from 'react';
+import { Input, Skeleton } from '@/components/atoms';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/molecules';
+import { CourseCard } from '@/components/organisms';
 import { useSearchParams } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
-import { Course, Progress } from '@/types';
-import { mockApi } from '@/mocks/api';
-import { CourseCard } from '@/components/CourseCard';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Skeleton } from '@/components/ui/skeleton';
+import { useAuth } from '@/hooks/use-auth';
+import { Course, CourseProgress } from '@/types';
 import { Search, Filter } from 'lucide-react';
-import modulesData from '@/mocks/modules.json';
+import { useFetch } from '@/hooks/use-fetch';
+import { useEffect, useState } from 'react';
+import { COURSE_BASE_URL } from '@/config/environment';
+import { COURSE_SERVICE_GET_COURSES, MODULE_SERVICE_GET_MODULES, TRAINING_SERVICE_GET_PROGRESS } from '@/config/resources';
+import apiClient from '@/lib/api-client';
 
 export default function Catalog() {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [loading, setLoading] = useState(true);
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [userProgress, setUserProgress] = useState<Progress[]>([]);
+
+  const [loadingProgress, setLoadingProgress] = useState(false);
+  const [availableCourses, setAvailableCourses] = useState<Course[]>([]);
+  const [userProgress, setUserProgress] = useState<CourseProgress[]>([]);
   
   const searchQuery = searchParams.get('q') || '';
   const moduleFilter = searchParams.get('module') || 'all';
   const levelFilter = searchParams.get('level') || 'all';
   const sortBy = (searchParams.get('sort') as 'recent' | 'popular' | 'rating') || 'recent';
 
-  useEffect(() => {
-    loadCourses();
-  }, [searchQuery, moduleFilter, levelFilter, sortBy, user]);
+  // Fetch módulos
+  const { data: modules = [], isLoading: loadingModules } = useFetch<Array<{ id: number; key: string; name: string; description: string }>>({
+    resource: `${COURSE_BASE_URL}${MODULE_SERVICE_GET_MODULES}`,
+  });
 
-  const loadCourses = async () => {
-    if (!user) return;
-    
-    try {
-      setLoading(true);
-      const [coursesData, progress] = await Promise.all([
-        mockApi.fetchCourses({
-          module: moduleFilter !== 'all' ? moduleFilter : undefined,
-          level: levelFilter !== 'all' ? levelFilter : undefined,
-          search: searchQuery || undefined,
-          sortBy,
-        }),
-        mockApi.fetchUserProgress(user.id),
-      ]);
-      
-      setCourses(coursesData);
-      setUserProgress(progress);
-    } catch (error) {
-      console.error('Error loading catalog:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Fetch cursos
+  const { data: courses = [], isLoading: loadingCourses } = useFetch<Course[]>({
+    resource: `${COURSE_BASE_URL}${COURSE_SERVICE_GET_COURSES}`,
+    params: {
+      module: moduleFilter !== 'all' ? moduleFilter : undefined,
+      level: levelFilter !== 'all' ? levelFilter : undefined,
+      search: searchQuery || undefined,
+      sortBy,
+    },
+  });
+
+  useEffect(() => {
+    const fetchUserProgressAndFilterCourses = async () => {
+      if (!user?.userId || courses.length === 0) {
+        setAvailableCourses(courses);
+        return;
+      }
+
+      try {
+        setLoadingProgress(true);
+        // Fetch user progress
+        const { data: userProgress } = await apiClient.get<CourseProgress[]>(
+          `${COURSE_BASE_URL}${TRAINING_SERVICE_GET_PROGRESS}/${user.userId}`
+        );
+        
+        // Store user progress for use in rendering
+        setUserProgress(userProgress);
+
+        // Filter out courses that user has completed (100%)
+        const completedCourseIds = userProgress
+          .filter(progress => progress.progressPct === 100)
+          .map(progress => progress.courseId);
+        
+        const availableCoursesForUser = courses.filter(course => 
+          !completedCourseIds.includes(course.id)
+        );
+
+        setAvailableCourses(availableCoursesForUser);
+      } catch (error) {
+        console.error('Error fetching user progress:', error);
+        // Fallback to showing all courses if there's an error
+        setAvailableCourses(courses);
+        setUserProgress([]);
+      } finally {
+        setLoadingProgress(false);
+      }
+    };
+
+    fetchUserProgressAndFilterCourses();
+  }, [user, courses]);
+
+  const loading = loadingCourses || loadingModules || loadingProgress;
 
   const updateFilter = (key: string, value: string) => {
     const params = new URLSearchParams(searchParams);
@@ -91,32 +123,9 @@ export default function Catalog() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos los módulos</SelectItem>
-              {modulesData.map(module => (
-                <SelectItem key={module} value={module}>{module}</SelectItem>
+              {modules.map(module => (
+                <SelectItem key={module.id} value={module.id.toString()}>{module.name}</SelectItem>
               ))}
-            </SelectContent>
-          </Select>
-
-          <Select value={levelFilter} onValueChange={(v) => updateFilter('level', v)}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Nivel" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos los niveles</SelectItem>
-              <SelectItem value="Básico">Básico</SelectItem>
-              <SelectItem value="Intermedio">Intermedio</SelectItem>
-              <SelectItem value="Avanzado">Avanzado</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select value={sortBy} onValueChange={(v) => updateFilter('sort', v)}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Ordenar por" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="recent">Más recientes</SelectItem>
-              <SelectItem value="popular">Más populares</SelectItem>
-              <SelectItem value="rating">Mejor valorados</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -129,22 +138,47 @@ export default function Catalog() {
             <Skeleton key={i} className="h-80" />
           ))}
         </div>
-      ) : courses.length === 0 ? (
+      ) : availableCourses.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-muted-foreground text-lg">No se encontraron cursos</p>
+          <p className="text-muted-foreground text-lg">No se encontraron cursos disponibles</p>
+          {user && (
+            <p className="text-sm text-muted-foreground mt-2">
+              ¡Has completado todos los cursos disponibles! 🎉
+            </p>
+          )}
         </div>
       ) : (
         <>
           <p className="text-sm text-muted-foreground">
-            {courses.length} curso{courses.length !== 1 ? 's' : ''} encontrado{courses.length !== 1 ? 's' : ''}
+            {availableCourses.length} curso{availableCourses.length !== 1 ? 's' : ''} disponible{availableCourses.length !== 1 ? 's' : ''}
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {courses.map(course => {
-              const progress = userProgress.find(p => p.courseId === course.id);
-              return (
-                <CourseCard key={course.id} course={course} progress={progress} />
-              );
-            })}
+            {availableCourses
+              .filter(course => moduleFilter === 'all' || course.moduleId === Number(moduleFilter))
+              .filter(course => {
+                if (!searchQuery.trim()) return true;
+                const q = searchQuery.trim().toLowerCase();
+                return (
+                  course.title.toLowerCase().includes(q) ||
+                  (course.tags && course.tags.toLowerCase().includes(q)) ||
+                  (course.moduleName && course.moduleName.toLowerCase().includes(q)) ||
+                  (course.description && course.description.toLowerCase().includes(q))
+                );
+              })
+              .map(course => {
+                // Find progress for this course
+                const courseProgress = userProgress.find(p => p.courseId === course.id);
+                const isStarted = courseProgress && courseProgress.progressPct > 0;
+                
+                return (
+                  <CourseCard 
+                    key={course.id} 
+                    course={course} 
+                    progress={courseProgress} 
+                    isStarted={isStarted}
+                  />
+                );
+              })}
           </div>
         </>
       )}

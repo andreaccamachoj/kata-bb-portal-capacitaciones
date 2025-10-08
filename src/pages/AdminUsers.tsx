@@ -1,14 +1,11 @@
-import { useState, useEffect } from 'react';
+import { Button, Input, Badge } from '@/components/atoms';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/molecules';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/organisms';
 import { User, UserRole } from '@/types';
-import usersData from '@/mocks/users.json';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+// TODO: Reemplazar con fetch real de usuarios
 import { toast } from 'sonner';
 import { Search, UserCog } from 'lucide-react';
+import {useState, useEffect } from 'react';
 
 export default function AdminUsers() {
   const [users, setUsers] = useState<User[]>([]);
@@ -37,7 +34,7 @@ export default function AdminUsers() {
     switch (role) {
       case 'ADMIN': return 'destructive';
       case 'INSTRUCTOR': return 'default';
-      case 'LEARNER': return 'secondary';
+      case 'STUDENT': return 'secondary';
     }
   };
 
@@ -109,7 +106,7 @@ export default function AdminUsers() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="LEARNER">LEARNER</SelectItem>
+                            <SelectItem value="STUDENT">STUDENT</SelectItem>
                             <SelectItem value="INSTRUCTOR">INSTRUCTOR</SelectItem>
                             <SelectItem value="ADMIN">ADMIN</SelectItem>
                           </SelectContent>

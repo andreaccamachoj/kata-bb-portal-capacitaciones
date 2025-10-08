@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Course, CourseStatus } from '@/types';
-import { mockApi } from '@/mocks/api';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/atoms/button';
+import { Input } from '@/components/atoms/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/molecules/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/organisms/table';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/molecules/card';
+import { Badge } from '@/components/atoms/badge';
 import { toast } from 'sonner';
 import { Search, BookOpen, Eye, Archive, Copy } from 'lucide-react';
 
@@ -17,16 +16,10 @@ export default function AdminCourses() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    loadCourses();
-  }, []);
-
-  const loadCourses = async () => {
-    setIsLoading(true);
-    const allCourses = await mockApi.fetchCourses();
-    // Include all courses (published, draft, archived)
-    setCourses(allCourses);
+    // TODO: Reemplazar con fetch real de cursos
     setIsLoading(false);
-  };
+    setCourses([]);
+  }, []);
 
   const handleStatusChange = (courseId: string, newStatus: CourseStatus) => {
     setCourses(prev => prev.map(c => 

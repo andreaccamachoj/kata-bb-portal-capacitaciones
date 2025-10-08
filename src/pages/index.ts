@@ -1,0 +1,14 @@
+export { default as AdminCourses } from './AdminCourses';
+export { default as AdminModules } from './AdminModules';
+export { default as AdminUsers } from './AdminUsers';
+export { default as Catalog } from './Catalog';
+export { default as CourseDetail } from './CourseDetail';
+export { default as CourseLearning } from './CourseLearning';
+export { default as Dashboard } from './Dashboard';
+export { default as Login } from './Login';
+export { default as MyLearning } from './MyLearning';
+export { default as NotFound } from './NotFound';
+export { default as Profile } from './Profile';
+export { default as Register } from './Register';
+export { default as StudioEdit } from './StudioEdit';
+export { default as StudioNew } from './StudioNew';

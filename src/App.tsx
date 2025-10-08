@@ -1,26 +1,27 @@
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "@/components/molecules/toaster";
+import { Toaster as Sonner } from "@/components/atoms/sonner";
+import { TooltipProvider } from "@/components/atoms/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
-import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { AppLayout } from "@/components/AppLayout";
-import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
-import Catalog from "./pages/Catalog";
-import CourseDetail from "./pages/CourseDetail";
-import MyLearning from "./pages/MyLearning";
-import Profile from "./pages/Profile";
-import AdminUsers from "./pages/AdminUsers";
-import AdminModules from "./pages/AdminModules";
-import AdminCourses from "./pages/AdminCourses";
-import Notifications from "./pages/Notifications";
-import CourseLearning from "./pages/CourseLearning";
-import StudioNew from "./pages/StudioNew";
-import StudioEdit from "./pages/StudioEdit";
-import NotFound from "./pages/NotFound";
-import Register from "./pages/Register";
+import { ProtectedRoute } from "@/components/templates/ProtectedRoute";
+import { AppLayout } from "@/components/templates/AppLayout";
+import { Login,
+        Dashboard,
+        Catalog,
+        CourseDetail,
+        MyLearning,
+        Profile,
+        AdminUsers,
+        AdminModules,
+        AdminCourses,
+        CourseLearning,
+        StudioNew,
+        StudioEdit,
+        NotFound,
+        Register
+      } from "@/pages";
+import { RoutePermissions } from '@/config/routePermissions';
 
 const queryClient = new QueryClient();
 
@@ -40,49 +41,54 @@ const App = () => (
                 <ProtectedRoute>
                   <AppLayout>
                     <Routes>
-                      <Route path="/" element={<Dashboard />} />
-                      <Route path="/catalog" element={<Catalog />} />
-                      <Route path="/courses/:courseId" element={<CourseDetail />} />
-                      <Route path="/courses/:courseId/learn" element={<CourseLearning />} />
-                      <Route path="/me/learning" element={<MyLearning />} />
-                      <Route path="/me/profile" element={<Profile />} />
-                      <Route path="/notifications" element={<Notifications />} />
+                      {/* Rutas públicas autenticadas */}
+                      <Route index element={<Dashboard />} />
+                      <Route path="dashboard" element={<Dashboard />} />
+                      <Route path="catalog" element={<Catalog />} />
+                      <Route path="courses/:courseId" element={<CourseDetail />} />
+                      <Route path="courses/:courseId/learn" element={<CourseLearning />} />
+                      <Route path="me/learning" element={<MyLearning />} />
+                      <Route path="me/profile" element={<Profile />} />
+
+                      {/* Rutas administrativas */}
                       <Route
-                        path="/admin/users" 
+                        path="admin/users" 
                         element={
-                          <ProtectedRoute roles={['ADMIN']}>
+                          <ProtectedRoute roles={RoutePermissions.MANAGE_USERS}>
                             <AdminUsers />
                           </ProtectedRoute>
                         } 
                       />
                       <Route 
-                        path="/admin/modules" 
+                        path="admin/modules" 
                         element={
-                          <ProtectedRoute roles={['ADMIN']}>
+                          <ProtectedRoute roles={RoutePermissions.MANAGE_MODULES}>
                             <AdminModules />
                           </ProtectedRoute>
                         } 
                       />
                       <Route 
-                        path="/admin/courses" 
+                        path="admin/courses" 
                         element={
-                          <ProtectedRoute roles={['ADMIN']}>
+                          <ProtectedRoute roles={RoutePermissions.MANAGE_COURSES}>
                             <AdminCourses />
                           </ProtectedRoute>
                         } 
                       />
+
+                      {/* Rutas de instructor */}
                       <Route
-                        path="/studio/new"
+                        path="studio/new"
                         element={
-                          <ProtectedRoute roles={['INSTRUCTOR', 'ADMIN']}>
+                          <ProtectedRoute roles={RoutePermissions.STUDIO_ACCESS}>
                             <StudioNew />
                           </ProtectedRoute>
                         }
                       />
                       <Route
-                        path="/studio/:courseId/edit"
+                        path="studio/:courseId/edit"
                         element={
-                          <ProtectedRoute roles={['INSTRUCTOR', 'ADMIN']}>
+                          <ProtectedRoute roles={RoutePermissions.STUDIO_ACCESS}>
                             <StudioEdit />
                           </ProtectedRoute>
                         }

@@ -1,19 +1,20 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
+import { useMutationWithAuth } from "@/hooks/use-mutation-with-auth";
+import { authService } from "@/services/auth.service";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { format } from "date-fns";
 import { CalendarIcon, GraduationCap, UserPlus } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
-import { DatePicker } from "@/components/DatePicker";
+import { Button } from "@/components/atoms/button";
+import { Input } from "@/components/atoms/input";
+import { DatePicker } from "@/components/atoms/DatePicker";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/ui/popover";
+} from "@/components/molecules/popover";
 import {
   Form,
   FormControl,
@@ -22,16 +23,19 @@ import {
   FormLabel,
   FormMessage,
   FormDescription,
-} from "@/components/ui/form";
+} from "@/components/molecules/form";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
+} from "@/components/molecules/card";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { RegisterCredentials } from "@/types/autentication.interface";
+import { getRoleId, UserRoles } from "@/config/routePermissions";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/molecules/select';
 
 const registerSchema = z.object({
   firstName: z.string()
@@ -43,24 +47,27 @@ const registerSchema = z.object({
   email: z.string()
     .email({ message: "Correo electrónico inválido" })
     .max(255, { message: "El correo no puede exceder 255 caracteres" }),
-  documentId: z.string()
-    .regex(/^[0-9]{6,15}$/, { message: "El documento debe contener entre 6 y 15 dígitos" }),
-  dateOfBirth: z.date({
-    required_error: "La fecha de nacimiento es requerida",
-  }).refine((date) => {
-    const today = new Date();
-    const age = today.getFullYear() - date.getFullYear();
-    return age >= 13 && age <= 120;
-  }, { message: "Debes tener al menos 13 años para registrarte" }),
-  phone: z.string()
-    .regex(/^[0-9]{10}$/, { message: "El celular debe contener 10 dígitos" }),
+  identityDocument: z.string()
+    .min(8, { message: "El documento debe tener al menos 8 caracteres" })
+    .max(20, { message: "El documento no puede exceder 20 caracteres" }),
+  birthDate: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, { message: "Formato de fecha inválido (YYYY-MM-DD)" }),
   password: z.string()
     .min(8, { message: "La contraseña debe tener al menos 8 caracteres" })
-    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, { message: "La contraseña debe contener al menos una mayúscula, una minúscula y un número" }),
-  receiveNotifications: z.boolean().default(false),
+    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])[A-Za-z\d@$!%*?&#]{8,}$/, {
+      message: "La contraseña debe contener al menos una mayúscula, una minúscula, un número y un caracter especial",
+    }),
+  phone: z.string()
+    .regex(/^[0-9]{10}$/, { message: "El celular debe contener 10 dígitos" }),
+  roleId: z.number().default(1)
 });
 
 type RegisterFormValues = z.infer<typeof registerSchema>;
+
+const roleOptions = [
+  { label: 'Estudiante', value: UserRoles.STUDENT },
+  { label: 'Instructor', value: UserRoles.INSTRUCTOR },
+];
 
 const Register = () => {
   const navigate = useNavigate();
@@ -72,19 +79,17 @@ const Register = () => {
       firstName: "",
       lastName: "",
       email: "",
-      documentId: "",
+      identityDocument: "",
+      birthDate: "",
       phone: "",
       password: "",
-      receiveNotifications: false,
+      roleId: getRoleId(UserRoles.STUDENT),
     },
   });
 
-  const onSubmit = async (data: RegisterFormValues) => {
-    setIsLoading(true);
-    try {
-      // Aquí iría la lógica real de registro
-      console.log("Datos de registro:", data);
-      
+  const registerMutation = useMutationWithAuth({
+    mutationFn: (data: RegisterCredentials) => authService.register(data),
+    onSuccess: () => {
       toast({
         title: "Registro exitoso",
         description: "Tu cuenta ha sido creada correctamente.",
@@ -94,12 +99,20 @@ const Register = () => {
       setTimeout(() => {
         navigate("/login");
       }, 1500);
-    } catch (error) {
+    },
+    onError: (error) => {
       toast({
         title: "Error",
-        description: "Hubo un problema al crear tu cuenta. Intenta nuevamente.",
+        description: error.message || "Hubo un problema al crear tu cuenta. Intenta nuevamente.",
         variant: "destructive",
       });
+    }
+  });
+
+  const onSubmit = async (data: RegisterCredentials) => {
+    setIsLoading(true);
+    try {
+      await registerMutation.mutateAsync(data);
     } finally {
       setIsLoading(false);
     }
@@ -176,7 +189,7 @@ const Register = () => {
 
                 <FormField
                   control={form.control}
-                  name="documentId"
+                  name="identityDocument"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Documento de Identidad</FormLabel>
@@ -184,12 +197,12 @@ const Register = () => {
                         <Input 
                           type="text" 
                           placeholder="1234567890" 
-                          maxLength={15}
+                          maxLength={20}
                           {...field} 
                         />
                       </FormControl>
                       <FormDescription className="h-5">
-                        Entre 6 y 15 dígitos
+                        Ingresa tu número de documento
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -198,7 +211,7 @@ const Register = () => {
 
                 <FormField
                   control={form.control}
-                  name="dateOfBirth"
+                  name="birthDate"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Fecha de Nacimiento</FormLabel>
@@ -214,23 +227,30 @@ const Register = () => {
                             >
                               <CalendarIcon className="mr-2 h-4 w-4" />
                               {field.value ? (
-                                format(field.value, "dd/MM/yyyy")
+                                field.value
                               ) : (
-                                <span>Selecciona una fecha</span>
+                                <span>YYYY-MM-DD</span>
                               )}
                             </Button>
                           </FormControl>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0" align="start">
                           <DatePicker
-                            value={field.value}
-                            onChange={field.onChange}
+                            value={field.value ? new Date(field.value) : undefined}
+                            onChange={(date) => {
+                              if (date) {
+                                const formattedDate = format(date, "yyyy-MM-dd");
+                                field.onChange(formattedDate);
+                              }
+                            }}
                             minDate={new Date("1900-01-01")}
                             maxDate={new Date()}
                           />
                         </PopoverContent>
                       </Popover>
-                      <FormDescription className="h-5"></FormDescription>
+                      <FormDescription className="h-5">
+                        Formato: YYYY-MM-DD
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -281,26 +301,31 @@ const Register = () => {
 
                 <FormField
                   control={form.control}
-                  name="receiveNotifications"
+                  name="roleId"
                   render={({ field }) => (
-                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 pt-8">
+                    <FormItem>
+                      <FormLabel>Rol</FormLabel>
                       <FormControl>
-                        <Checkbox
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
+                        <Select
+                          value={roleOptions.find(opt => getRoleId(opt.value) === field.value)?.value || UserRoles.STUDENT}
+                          onValueChange={val => field.onChange(getRoleId(val as typeof UserRoles.STUDENT | typeof UserRoles.INSTRUCTOR))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecciona un rol" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {roleOptions.map(opt => (
+                              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </FormControl>
-                      <div className="space-y-1 leading-none">
-                        <FormLabel>
-                          Deseo recibir notificaciones
-                        </FormLabel>
-                        <FormDescription>
-                          Recibirás actualizaciones sobre cursos y contenido nuevo
-                        </FormDescription>
-                      </div>
+                      <FormDescription className="h-5">Selecciona tu rol en la plataforma</FormDescription>
+                      <FormMessage />
                     </FormItem>
                   )}
                 />
+
               </div>
 
               <div className="flex flex-col items-center gap-4 pt-2">

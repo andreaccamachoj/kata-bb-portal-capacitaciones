@@ -1,48 +1,97 @@
-import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
-import { Course, Progress } from '@/types';
-import { mockApi } from '@/mocks/api';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Progress as ProgressBar } from '@/components/ui/progress';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Clock, Star, TrendingUp, PlayCircle, FileText, Award, User } from 'lucide-react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { Course, DetailedCourseProgress } from '@/types';
+import { Button } from '@/components/atoms/button';
+import { Badge } from '@/components/atoms/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/molecules/card';
+import { Accordion, AccordionItem, AccordionTrigger } from '@/components/organisms/accordion';
+import { Progress as ProgressBar } from '@/components/atoms/progress';
+import { Skeleton } from '@/components/atoms/skeleton';
+import { PlayCircle, FileText, Award } from 'lucide-react';
+import { useFetch } from '@/hooks/use-fetch';
+import { useAuth } from '@/hooks/use-auth';
+import { COURSE_BASE_URL } from '@/config/environment';
+import { COURSE_SERVICE_GET_COURSES, TRAINING_SERVICE_GET_COURSE_PROGRESS, TRAINING_SERVICE_ASSIGN_COURSE } from '@/config/resources';
+import { useState, useEffect } from 'react';
+import apiClient from '@/lib/api-client';
+import { toast } from '@/hooks/use-toast';
 
 export default function CourseDetail() {
   const { courseId } = useParams<{ courseId: string }>();
   const { user } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [course, setCourse] = useState<Course | null>(null);
-  const [progress, setProgress] = useState<Progress | null>(null);
+  const navigate = useNavigate();
+  const [progress, setProgress] = useState<DetailedCourseProgress | null>(null);
+  const [loadingProgress, setLoadingProgress] = useState(true);
+  const [enrolling, setEnrolling] = useState(false);
 
+  // Fetch detalle del curso
+  const { data: courses, isLoading } = useFetch<Course[]>({
+    resource: `${COURSE_BASE_URL}${COURSE_SERVICE_GET_COURSES}/${courseId}`,
+  });
+  const course = Array.isArray(courses) ? courses[0] : undefined;
+
+  // Fetch progreso del curso
   useEffect(() => {
-    loadCourse();
-  }, [courseId, user]);
+    const fetchProgress = async () => {
+      if (!user?.userId || !courseId) {
+        setProgress(null);
+        setLoadingProgress(false);
+        return;
+      }
 
-  const loadCourse = async () => {
-    if (!courseId || !user) return;
+      try {
+        setLoadingProgress(true);
+        const { data } = await apiClient.get<DetailedCourseProgress>(
+          `${COURSE_BASE_URL}${TRAINING_SERVICE_GET_COURSE_PROGRESS}/${courseId}/progress/${user.userId}`
+        );
+        setProgress(data);
+      } catch (error) {
+        console.error('Error fetching course progress:', error);
+        setProgress(null);
+      } finally {
+        setLoadingProgress(false);
+      }
+    };
+
+    fetchProgress();
+  }, [user?.userId, courseId]);
+
+  const handleEnrollCourse = async () => {
+    if (!user?.userId || !courseId || hasStarted) return;
 
     try {
-      setLoading(true);
-      const [courseData, userProgress] = await Promise.all([
-        mockApi.fetchCourse(courseId),
-        mockApi.fetchUserProgress(user.id),
-      ]);
+      setEnrolling(true);
+      await apiClient.post(`${COURSE_BASE_URL}${TRAINING_SERVICE_ASSIGN_COURSE}`, {
+        userId: user.userId,
+        courseId: Number(courseId)
+      });
 
-      setCourse(courseData);
-      const courseProgress = userProgress.find(p => p.courseId === courseId);
-      setProgress(courseProgress || null);
+      toast({
+        title: 'Curso asignado exitosamente',
+        description: `Te has inscrito al curso "${course?.title}"`,
+      });
+
+      // Refresh progress after enrollment
+      const { data } = await apiClient.get<DetailedCourseProgress>(
+        `${COURSE_BASE_URL}${TRAINING_SERVICE_GET_COURSE_PROGRESS}/${courseId}/progress/${user.userId}`
+      );
+      setProgress(data);
+
+      // Redirect to course learning page
+      navigate(`/courses/${courseId}/learn`);
+
     } catch (error) {
-      console.error('Error loading course:', error);
+      console.error('Error enrolling in course:', error);
+      toast({
+        title: 'Error al inscribirse',
+        description: 'No se pudo completar la inscripción. Intenta de nuevo.',
+        variant: 'destructive'
+      });
     } finally {
-      setLoading(false);
+      setEnrolling(false);
     }
   };
 
-  if (loading) {
+  if (isLoading || loadingProgress) {
     return (
       <div className="p-6 max-w-5xl mx-auto space-y-6">
         <Skeleton className="h-64 w-full" />
@@ -59,8 +108,13 @@ export default function CourseDetail() {
     );
   }
 
-  const progressPercent = progress?.percentage || 0;
-  const hasStarted = progressPercent > 0;
+  // Ajuste: tags es string, moduleName es string, chapterList es el array de capítulos
+  const tags = (course.tags || '').split(',').map(t => t.trim()).filter(Boolean);  
+  const chapters = course.chapterList;
+  const progressPercent = Math.round(progress?.progressPct || 0);
+  
+  // Un curso está iniciado si el usuario tiene progreso registrado (incluso si es 0%)
+  const hasStarted = progress !== null; // Si progress existe, el usuario está inscrito
   const isCompleted = progressPercent === 100;
 
   return (
@@ -75,8 +129,9 @@ export default function CourseDetail() {
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex items-end">
           <div className="p-6 text-white">
             <div className="flex gap-2 mb-2">
-              <Badge className="bg-primary">{course.level}</Badge>
-              <Badge variant="secondary">{course.module}</Badge>
+              {/* No hay course.level en el DTO, puedes quitarlo o ajustarlo si lo agregas */}
+              {/* <Badge className="bg-primary">{course.level}</Badge> */}
+              <Badge variant="secondary">{course.moduleName}</Badge>
             </div>
             <h1 className="text-3xl font-bold mb-2">{course.title}</h1>
           </div>
@@ -101,33 +156,23 @@ export default function CourseDetail() {
             </CardHeader>
             <CardContent>
               <Accordion type="single" collapsible className="w-full">
-                {course.chapters.map((chapter, index) => {
-                  const isCompleted = progress?.completedChapters.includes(chapter.id);
+                {chapters.map((chapter, index) => {
+                  const isCompleted = progress?.completedChapters.some(cc => cc.chapterId === chapter.id) || false;
                   return (
-                    <AccordionItem key={chapter.id} value={chapter.id}>
+                    <AccordionItem key={chapter.id} value={String(chapter.id)}>
                       <AccordionTrigger>
                         <div className="flex items-center gap-3">
-                          {chapter.type === 'video' ? (
+                          {chapter.contentType === 'video' ? (
                             <PlayCircle className="w-4 h-4" />
                           ) : (
                             <FileText className="w-4 h-4" />
                           )}
                           <span>{index + 1}. {chapter.title}</span>
                           {isCompleted && (
-                            <Badge variant="outline" className="ml-2">✓</Badge>
+                            <Badge variant="outline" className="ml-2 bg-green-100 text-green-700">✓</Badge>
                           )}
                         </div>
                       </AccordionTrigger>
-                      <AccordionContent>
-                        <div className="pl-7 text-sm text-muted-foreground">
-                          {chapter.type === 'video' && (
-                            <p>Video · {chapter.duration} minutos</p>
-                          )}
-                          {chapter.type === 'pdf' && (
-                            <p>PDF · {chapter.pages} páginas</p>
-                          )}
-                        </div>
-                      </AccordionContent>
                     </AccordionItem>
                   );
                 })}
@@ -147,64 +192,54 @@ export default function CourseDetail() {
                     <span className="font-medium text-primary">{progressPercent}%</span>
                   </div>
                   <ProgressBar value={progressPercent} className="h-2" />
+                  {progressPercent === 0 && (
+                    <p className="text-xs text-muted-foreground text-center">
+                      ¡Estás inscrito! Comienza el primer capítulo
+                    </p>
+                  )}
                 </div>
               )}
 
               {isCompleted && (
-                <div className="bg-success/10 text-success p-4 rounded-lg text-center">
+                <div className="bg-green-50 text-green-700 dark:bg-green-900 dark:text-green-300 p-4 rounded-lg text-center">
                   <Award className="w-8 h-8 mx-auto mb-2" />
                   <p className="font-semibold">¡Curso completado!</p>
+                  {progress?.completedAt && (
+                    <p className="text-sm mt-1">Completado el {new Date(progress.completedAt).toLocaleDateString()}</p>
+                  )}
                 </div>
               )}
 
-              <Link to={`/courses/${course.id}/learn`} className="block">
-                <Button className="w-full" size="lg">
-                  {hasStarted ? 'Continuar' : 'Iniciar Curso'}
+              {hasStarted ? (
+                <Link to={`/courses/${course.id}/learn`} className="block">
+                  <Button className="w-full" size="lg">
+                    {progressPercent === 0 ? 'Comenzar' : 'Continuar'}
+                  </Button>
+                </Link>
+              ) : (
+                <Button 
+                  className="w-full" 
+                  size="lg"
+                  onClick={handleEnrollCourse}
+                  disabled={enrolling}
+                >
+                  {enrolling ? 'Inscribiendo...' : 'Iniciar Curso'}
                 </Button>
-              </Link>
+              )}
 
-              <div className="space-y-2 text-sm">
-                <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-muted-foreground" />
-                  <span>{course.duration} minutos</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Star className="w-4 h-4 text-warning fill-warning" />
-                  <span>{course.rating} · Valoración</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 text-muted-foreground" />
-                  <span>{course.popularity}% popularidad</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <User className="w-4 h-4 text-muted-foreground" />
-                  <span>{course.author.name}</span>
-                </div>
-              </div>
+              {/* Puedes agregar aquí más detalles del curso si están en el DTO */}
             </CardContent>
           </Card>
 
-          <Card>
+          {/* Insignia y tags solo si existen en el DTO */}
+          {/* <Card>
             <CardHeader>
               <CardTitle className="text-base">Insignia a obtener</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center gap-3">
-                <div 
-                  className="w-12 h-12 rounded-full flex items-center justify-center text-2xl"
-                  style={{ backgroundColor: course.badge.color + '20' }}
-                >
-                  {course.badge.icon}
-                </div>
-                <div>
-                  <p className="font-semibold">{course.badge.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {isCompleted ? '¡Obtenida!' : 'Completa el curso para obtenerla'}
-                  </p>
-                </div>
-              </div>
+              ...
             </CardContent>
-          </Card>
+          </Card> */}
 
           <Card>
             <CardHeader>
@@ -212,7 +247,7 @@ export default function CourseDetail() {
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-2">
-                {course.tags.map(tag => (
+                {tags.map(tag => (
                   <Badge key={tag} variant="secondary">{tag}</Badge>
                 ))}
               </div>
